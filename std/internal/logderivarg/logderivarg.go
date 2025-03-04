@@ -115,38 +115,130 @@ func Build(api frontend.API, table Table, queries Table) error {
 	}
 	toCommit = append(toCommit, exps...)
 
+	//rewrite logup to avoid direct division operation
 	multicommit.WithCommitment(api, func(api frontend.API, commitment frontend.Variable) error {
-		rowCoeffs, challenge := randLinearCoefficients(api, nbRow, commitment)
-		var lp frontend.Variable = 0
+		challenge := commitment
+		rowCoeffs := GetColumnRandomness(api, nbRow, FullRandom)
+		table_poly := make([]RationalNumber, len(table))
 		for i := range table {
-			tmp := api.DivUnchecked(exps[i], api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])))
-			lp = api.Add(lp, tmp)
-		}
-		var rp frontend.Variable = 0
-
-		toInvert := make([]frontend.Variable, len(queries))
-		for i := range queries {
-			toInvert[i] = api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i]))
-		}
-
-		if bapi, ok := api.(frontend.BatchInverter); ok {
-			toInvert = bapi.BatchInvert(toInvert)
-		} else {
-			for i := range toInvert {
-				toInvert[i] = api.Inverse(toInvert[i])
+			table_poly[i] = RationalNumber{
+				Numerator:   exps[i],
+				Denominator: api.Sub(challenge, randLinearCombination(api, rowCoeffs, table[i])),
 			}
 		}
+		table_poly_at_alpha := SumRationalNumbers(api, table_poly)
 
+		query_poly := make([]RationalNumber, len(queries))
 		for i := range queries {
-			// tmp := api.Inverse(api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])))
-			rp = api.Add(rp, toInvert[i])
+			query_poly[i] = RationalNumber{
+				Numerator:   1,
+				Denominator: api.Sub(challenge, randLinearCombination(api, rowCoeffs, queries[i])),
+			}
 		}
-		api.AssertIsEqual(lp, rp)
+		query_poly_at_alpha := SumRationalNumbers(api, query_poly)
+		api.AssertIsEqual(
+			api.Mul(table_poly_at_alpha.Numerator, query_poly_at_alpha.Denominator),
+			api.Mul(query_poly_at_alpha.Numerator, table_poly_at_alpha.Denominator),
+		)
 		return nil
 	}, toCommit...)
 	return nil
 }
 
+type ColumnCombineOptions int
+
+const (
+	Poly = iota
+	FullRandom
+)
+
+func SimpleMin(a int, b int) int {
+	if a < b {
+		return a
+	} else {
+		return b
+	}
+}
+func GetColumnRandomness(api frontend.API, n_columns int, column_combine_options ColumnCombineOptions) []frontend.Variable {
+	var randomness = make([]frontend.Variable, n_columns)
+	committer, ok := api.Compiler().(frontend.Committer)
+	if !ok {
+		panic("compiler doesn't implement frontend.Committer")
+	}
+	if column_combine_options == Poly {
+		beta, err := committer.Commit([]frontend.Variable{}...)
+		if err != nil {
+			panic(err)
+		}
+		randomness[0] = 1
+		randomness[1] = beta
+
+		// Hopefully this will generate fewer layers than sequential pows
+		max_deg := int(1)
+		for max_deg < n_columns {
+			for i := max_deg + 1; i <= SimpleMin(max_deg*2, n_columns-1); i++ {
+				randomness[i] = api.Mul(randomness[max_deg], randomness[i-max_deg])
+			}
+			max_deg *= 2
+		}
+
+		// Debug Code:
+		// for i := 1; i < n_columns; i++ {
+		// 	api.AssertIsEqual(randomness[i], api.Mul(randomness[i - 1], beta))
+		// }
+
+	} else if column_combine_options == FullRandom {
+		randomness[0] = 1
+		var err error
+		for i := 1; i < int(n_columns); i++ {
+			randomness[i], err = committer.Commit([]frontend.Variable{}...)
+			if err != nil {
+				panic(err)
+			}
+		}
+	} else {
+		panic("Unknown poly combine options")
+	}
+	return randomness
+}
+
+type RationalNumber struct {
+	Numerator   frontend.Variable
+	Denominator frontend.Variable
+}
+
+func (r *RationalNumber) Add(api frontend.API, other *RationalNumber) RationalNumber {
+	return RationalNumber{
+		Numerator:   api.Add(api.Mul(r.Numerator, other.Denominator), api.Mul(other.Numerator, r.Denominator)),
+		Denominator: api.Mul(r.Denominator, other.Denominator),
+	}
+}
+
+// Construct a binary summation tree to sum all the values
+func SumRationalNumbers(api frontend.API, rs []RationalNumber) RationalNumber {
+	n := len(rs)
+	if n == 0 {
+		return RationalNumber{Numerator: 0, Denominator: 1}
+	}
+
+	cur := rs
+	next := make([]RationalNumber, 0)
+
+	for n > 1 {
+		n >>= 1
+		for i := 0; i < n; i++ {
+			next = append(next, cur[i*2].Add(api, &cur[i*2+1]))
+		}
+		cur = next
+		next = next[:0]
+	}
+
+	if len(cur) != 1 {
+		panic("Summation code may be wrong.")
+	}
+
+	return cur[0]
+}
 func randLinearCoefficients(api frontend.API, nbRow int, commitment frontend.Variable) (rowCoeffs []frontend.Variable, challenge frontend.Variable) {
 	hasher, err := mimc.NewMiMC(api)
 	if err != nil {
