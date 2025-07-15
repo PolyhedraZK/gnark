@@ -320,7 +320,7 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 
 func serialProve(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
 
-	fmt.Printf("serialProve\n")
+	//fmt.Printf("serialProve\n")
 
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
