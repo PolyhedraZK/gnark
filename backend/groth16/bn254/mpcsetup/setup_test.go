@@ -213,7 +213,7 @@ func proveVerifyCircuit(t *testing.T, pk groth16.ProvingKey, vk groth16.Verifyin
 	require.NoError(t, err)
 
 	// groth16: ensure proof is verified
-	proof, err := groth16.Prove(getTestCircuit(), pk, witness)
+	proof, _, err := groth16.Prove(getTestCircuit(), pk, witness)
 	require.NoError(t, err)
 
 	err = groth16.Verify(proof, vk, pubWitness)

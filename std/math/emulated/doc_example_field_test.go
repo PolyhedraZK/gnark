@@ -54,7 +54,7 @@ func ExampleField() {
 	if err != nil {
 		panic(err)
 	}
-	proof, err := groth16.Prove(ccs, pk, witnessData, backend.WithSolverOptions(solver.WithHints(emulated.GetHints()...)))
+	proof, _, err := groth16.Prove(ccs, pk, witnessData, backend.WithSolverOptions(solver.WithHints(emulated.GetHints()...)))
 	if err != nil {
 		panic(err)
 	}

@@ -66,7 +66,7 @@ func ExamplePairing() {
 	if err != nil {
 		panic(err)
 	}
-	proof, err := groth16.Prove(ccs, pk, secretWitness)
+	proof, _, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic(err)
 	}

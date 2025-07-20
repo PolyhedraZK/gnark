@@ -308,7 +308,7 @@ func benchProof(b *testing.B, circuit, assignment frontend.Circuit) {
 		id := rand.Uint32() % 256 //#nosec G404 -- This is a false positive
 		start = time.Now().UnixMicro()
 		fmt.Println("groth16 proving", id)
-		_, err = groth16.Prove(cs, pk, fullWitness)
+		_, _, err = groth16.Prove(cs, pk, fullWitness)
 		require.NoError(b, err)
 		fmt.Println("groth16 proved", id, "in", time.Now().UnixMicro()-start, "μs")
 
@@ -723,7 +723,7 @@ func ExamplePrintln() {
 	panicIfError(err)
 	w, err := frontend.NewWitness(assignment, field)
 	panicIfError(err)
-	_, err = groth16.Prove(cs, pk, w)
+	_, _, err = groth16.Prove(cs, pk, w)
 	panicIfError(err)
 
 	// Output:

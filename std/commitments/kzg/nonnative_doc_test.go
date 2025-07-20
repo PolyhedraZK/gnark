@@ -143,7 +143,7 @@ func Example_emulated() {
 	}
 
 	// construct the groth16 proof of verifying KZG commitment opening in-circuit
-	circuitProof, err := groth16.Prove(ccs, pk, secretWitness)
+	circuitProof, _, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic("proving failed: " + err.Error())
 	}

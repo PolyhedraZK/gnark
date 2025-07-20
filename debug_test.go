@@ -199,6 +199,6 @@ func getGroth16Trace(circuit, w frontend.Circuit) (string, error) {
 		return "", err
 	}
 	log := zerolog.New(&zerolog.ConsoleWriter{Out: &buf, NoColor: true, PartsExclude: []string{zerolog.LevelFieldName, zerolog.TimestampFieldName}})
-	_, err = groth16.Prove(ccs, pk, sw, backend.WithSolverOptions(solver.WithLogger(log)))
+	_, _, err = groth16.Prove(ccs, pk, sw, backend.WithSolverOptions(solver.WithLogger(log)))
 	return buf.String(), err
 }

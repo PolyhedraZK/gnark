@@ -27,7 +27,7 @@ func TestCustomHashToField(t *testing.T) {
 			witness, err := frontend.NewWitness(assignment, curve.ScalarField())
 			assert.NoError(err)
 			assert.Run(func(assert *test.Assert) {
-				proof, err := groth16.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
+				proof, _, err := groth16.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
 				assert.NoError(err)
 				pubWitness, err := witness.Public()
 				assert.NoError(err)
@@ -35,7 +35,7 @@ func TestCustomHashToField(t *testing.T) {
 				assert.NoError(err)
 			}, "custom success")
 			assert.Run(func(assert *test.Assert) {
-				proof, err := groth16.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
+				proof, _, err := groth16.Prove(ccs, pk, witness, backend.WithProverHashToFieldFunction(constantHash{}))
 				assert.NoError(err)
 				pubWitness, err := witness.Public()
 				assert.NoError(err)
@@ -43,7 +43,7 @@ func TestCustomHashToField(t *testing.T) {
 				assert.Error(err)
 			}, "prover_only")
 			assert.Run(func(assert *test.Assert) {
-				proof, err := groth16.Prove(ccs, pk, witness)
+				proof, _, err := groth16.Prove(ccs, pk, witness)
 				assert.Error(err)
 				_ = proof
 			}, "verifier_only")
@@ -81,7 +81,7 @@ func BenchmarkProver(b *testing.B) {
 			}
 			b.ResetTimer()
 			for i := 0; i < b.N; i++ {
-				_, _ = groth16.Prove(r1cs, pk, fullWitness)
+				_, _, _ = groth16.Prove(r1cs, pk, fullWitness)
 			}
 		})
 	}
@@ -104,7 +104,7 @@ func BenchmarkVerifier(b *testing.B) {
 			if err != nil {
 				b.Fatal(err)
 			}
-			proof, err := groth16.Prove(r1cs, pk, fullWitness)
+			proof, _, err := groth16.Prove(r1cs, pk, fullWitness)
 			if err != nil {
 				panic(err)
 			}

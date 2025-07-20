@@ -87,7 +87,7 @@ func ExampleField_NewHint() {
 	if err != nil {
 		panic(err)
 	}
-	proof, err := groth16.Prove(ccs, pk, witnessData, backend.WithSolverOptions(solver.WithHints(HintExample)))
+	proof, _, err := groth16.Prove(ccs, pk, witnessData, backend.WithSolverOptions(solver.WithHints(HintExample)))
 	if err != nil {
 		panic(err)
 	}

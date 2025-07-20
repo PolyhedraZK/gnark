@@ -124,7 +124,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	proof, err := groth16.Prove(ccs, pk, privWit)
+	proof, _, err := groth16.Prove(ccs, pk, privWit)
 	if err != nil {
 		panic(err)
 	}
@@ -184,7 +184,7 @@ func Example() {
 	if err != nil {
 		panic(err)
 	}
-	proof2, err := groth16.Prove(ccs2, pk2, privWit2)
+	proof2, _, err := groth16.Prove(ccs2, pk2, privWit2)
 	if err != nil {
 		panic(err)
 	}

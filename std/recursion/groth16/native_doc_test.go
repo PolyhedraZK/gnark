@@ -72,7 +72,7 @@ func Example_native() {
 	}
 
 	// construct the groth16 proof of verifying Groth16 proof in-circuit
-	outerProof, err := groth16.Prove(ccs, pk, secretWitness)
+	outerProof, _, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic("proving failed: " + err.Error())
 	}

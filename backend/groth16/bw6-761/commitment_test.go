@@ -50,7 +50,7 @@ func prove(t *testing.T, assignment frontend.Circuit, cs constraint.ConstraintSy
 	_witness, err := frontend.NewWitness(assignment, ecc.BW6_761.ScalarField())
 	assert.NoError(t, err)
 
-	proof, err := groth16.Prove(cs, pk, _witness)
+	proof, _, err := groth16.Prove(cs, pk, _witness)
 	assert.NoError(t, err)
 
 	public, err := _witness.Public()
