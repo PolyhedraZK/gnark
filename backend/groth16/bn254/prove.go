@@ -376,6 +376,32 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
 		gnarkOutput.CheckH = write_to_wasm_array(h)
 
+		DomainFrMultiplicativeGenBytes := pk.Domain.FrMultiplicativeGen.BytesMont()
+		gnarkOutput.DomainFrMultiplicativeGen = DomainFrMultiplicativeGenBytes[:]
+		DomainFrMultiplicativeGenInvBytes := pk.Domain.FrMultiplicativeGenInv.BytesMont()
+		gnarkOutput.DomainFrMultiplicativeGenInv = DomainFrMultiplicativeGenInvBytes[:]
+		DomainCardinalityInvBytes := pk.Domain.CardinalityInv.BytesMont()
+		gnarkOutput.DomainCardinalityInv = DomainCardinalityInvBytes[:]
+		DomainGeneratorInvBytes := pk.Domain.GeneratorInv.BytesMont()
+		gnarkOutput.DomainGeneratorInv = DomainGeneratorInvBytes[:]
+
+		stringOutputFile.WriteString("DomainFrMultiplicativeGen: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainFrMultiplicativeGenBytes))
+		stringOutputFile.WriteString("DomainFrMultiplicativeGen Non-Mont: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.FrMultiplicativeGen.String()))
+		stringOutputFile.WriteString("DomainFrMultiplicativeGenInv: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainFrMultiplicativeGenInvBytes))
+		stringOutputFile.WriteString("DomainFrMultiplicativeGenInv Non-Mont: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.FrMultiplicativeGenInv.String()))
+		stringOutputFile.WriteString("DomainCardinalityInv: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainCardinalityInvBytes))
+		stringOutputFile.WriteString("DomainCardinalityInv Non-Mont: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.CardinalityInv.String()))
+		stringOutputFile.WriteString("DomainGeneratorInv: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainGeneratorInvBytes))
+		stringOutputFile.WriteString("DomainGeneratorInv Non-Mont: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.GeneratorInv.String()))
+
 		stringOutputFile.WriteString("CheckH: [")
 		for _, h := range h {
 			stringOutputFile.WriteString(fmt.Sprintf("%x,", h))
@@ -748,7 +774,11 @@ type GnarkOutput struct {
 	PkG2Delta []byte
 	// Domain information
 	DomainCardinality []byte
+	DomainCardinalityInv []byte
 	DomainGenerator []byte
+	DomainGeneratorInv []byte
+	DomainFrMultiplicativeGen []byte
+	DomainFrMultiplicativeGenInv []byte
 	// Delta computed values
 	DeltaR []byte
 	DeltaS []byte
@@ -787,7 +817,11 @@ func (gnarkOutput *GnarkOutput) Bytes() []byte {
 	gnarkOutputBytes.Write(gnarkOutput.PkG2Beta)
 	gnarkOutputBytes.Write(gnarkOutput.PkG2Delta)
 	gnarkOutputBytes.Write(gnarkOutput.DomainCardinality)
+	gnarkOutputBytes.Write(gnarkOutput.DomainCardinalityInv)
 	gnarkOutputBytes.Write(gnarkOutput.DomainGenerator)
+	gnarkOutputBytes.Write(gnarkOutput.DomainGeneratorInv)
+	gnarkOutputBytes.Write(gnarkOutput.DomainFrMultiplicativeGen)
+	gnarkOutputBytes.Write(gnarkOutput.DomainFrMultiplicativeGenInv)
 	gnarkOutputBytes.Write(gnarkOutput.DeltaR)
 	gnarkOutputBytes.Write(gnarkOutput.DeltaS)
 	gnarkOutputBytes.Write(gnarkOutput.DeltaKr)
