@@ -634,6 +634,14 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		toRemove := commitmentInfo.GetPrivateCommitted()
 		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
 		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+		gnarkOutput.WireValuesFiltered = write_to_wasm_array(_wireValues)
+		stringOutputFile.WriteString("WireValuesFiltered: ")
+		stringOutputFile.WriteString(fmt.Sprintf("%x\n", _wireValues))
+		stringOutputFile.WriteString("WireValuesFiltered Non-Mont: [")
+		for _, w := range _wireValues {
+			stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
+		}
+		stringOutputFile.WriteString("]\n")
 
 		if _, err := krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: n / 2}); err != nil {
 			chKrsDone <- err
@@ -754,6 +762,7 @@ type GnarkOutput struct {
 	WireValuesA []byte
 	WireValuesB []byte
 	WireValues []byte  // All wire values (not just filtered)
+	WireValuesFiltered []byte
 	R []byte
 	S []byte
 	Kr []byte
@@ -798,7 +807,8 @@ func (gnarkOutput *GnarkOutput) Bytes() []byte {
 	gnarkOutputBytes.Write(gnarkOutput.CheckH)
 	gnarkOutputBytes.Write(gnarkOutput.WireValuesA)
 	gnarkOutputBytes.Write(gnarkOutput.WireValuesB)
-	gnarkOutputBytes.Write(gnarkOutput.WireValues)
+	gnarkOutputBytes.Write(gnarkOutput.WireValues)	
+	gnarkOutputBytes.Write(gnarkOutput.WireValuesFiltered)
 	gnarkOutputBytes.Write(gnarkOutput.R)
 	gnarkOutputBytes.Write(gnarkOutput.S)
 	gnarkOutputBytes.Write(gnarkOutput.Kr)
