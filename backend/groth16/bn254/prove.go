@@ -122,11 +122,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 
 	gnarkOutput := new(GnarkOutput)
-	stringOutputFile, err := os.Create("gnark_output.txt")
-	if err != nil {
-		return nil, nil, fmt.Errorf("create gnark_output.txt: %w", err)
-	}
-	defer stringOutputFile.Close()
+	//stringOutputFile, err := os.Create("gnark_output.txt")
+	//if err != nil {
+	//	return nil, nil, fmt.Errorf("create gnark_output.txt: %w", err)
+	//}
+	//defer stringOutputFile.Close()
 
 	// Capture ProvingKey G1 generators
 	alphaBytes := pk.G1.Alpha.X.BytesMont()
@@ -157,27 +157,27 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	gnarkOutput.PkG2Delta = append(g2DeltaXA0[:], g2DeltaXA1[:]...)
 	gnarkOutput.PkG2Delta = append(gnarkOutput.PkG2Delta, g2DeltaYA0[:]...)
 	gnarkOutput.PkG2Delta = append(gnarkOutput.PkG2Delta, g2DeltaYA1[:]...)
-
-	stringOutputFile.WriteString("PkG1Alpha: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G1.Alpha))
-	stringOutputFile.WriteString("PkG1Alpha Non-Mont: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G1.Alpha.String()))
-	stringOutputFile.WriteString("PkG1Beta: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G1.Beta))
-	stringOutputFile.WriteString("PkG1Beta Non-Mont: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G1.Beta.String()))
-	stringOutputFile.WriteString("PkG1Delta: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G1.Delta))
-	stringOutputFile.WriteString("PkG1Delta Non-Mont: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G1.Delta.String()))
-	stringOutputFile.WriteString("PkG2Beta: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G2.Beta))
-	stringOutputFile.WriteString("PkG2Beta Non-Mont: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G2.Beta.String()))
-	stringOutputFile.WriteString("PkG2Delta: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G2.Delta))
-	stringOutputFile.WriteString("PkG2Delta Non-Mont: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G2.Delta.String()))
+	//
+	//stringOutputFile.WriteString("PkG1Alpha: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G1.Alpha))
+	//stringOutputFile.WriteString("PkG1Alpha Non-Mont: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G1.Alpha.String()))
+	//stringOutputFile.WriteString("PkG1Beta: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G1.Beta))
+	//stringOutputFile.WriteString("PkG1Beta Non-Mont: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G1.Beta.String()))
+	//stringOutputFile.WriteString("PkG1Delta: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G1.Delta))
+	//stringOutputFile.WriteString("PkG1Delta Non-Mont: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G1.Delta.String()))
+	//stringOutputFile.WriteString("PkG2Beta: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G2.Beta))
+	//stringOutputFile.WriteString("PkG2Beta Non-Mont: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G2.Beta.String()))
+	//stringOutputFile.WriteString("PkG2Delta: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.G2.Delta))
+	//stringOutputFile.WriteString("PkG2Delta Non-Mont: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.G2.Delta.String()))
 
 	// Capture Domain information
 	cardinalityBytes := make([]byte, 8)
@@ -186,12 +186,12 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	generatorBytes := pk.Domain.Generator.BytesMont()
 	gnarkOutput.DomainGenerator = generatorBytes[:]
 
-	stringOutputFile.WriteString("DomainCardinality: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.Domain.Cardinality))
-	stringOutputFile.WriteString("DomainGenerator: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.Domain.Generator))
-	stringOutputFile.WriteString("DomainGenerator Non-Mont: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.Generator.String()))
+	//stringOutputFile.WriteString("DomainCardinality: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.Domain.Cardinality))
+	//stringOutputFile.WriteString("DomainGenerator: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.Domain.Generator))
+	//stringOutputFile.WriteString("DomainGenerator Non-Mont: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.Generator.String()))
 
 	// Capture Infinity masks
 	infinityABytes := make([]byte, len(pk.InfinityA)+8)
@@ -208,8 +208,8 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 	gnarkOutput.InfinityA = infinityABytes
 
-	stringOutputFile.WriteString("InfinityA: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", infinityABytes))
+	//stringOutputFile.WriteString("InfinityA: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", infinityABytes))
 
 	infinityBBytes := make([]byte, len(pk.InfinityB)+8)
 	infinityBBytesLength := len(pk.InfinityB)
@@ -225,22 +225,22 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	}
 	gnarkOutput.InfinityB = infinityBBytes
 
-	stringOutputFile.WriteString("InfinityB: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", infinityBBytes))
+	//stringOutputFile.WriteString("InfinityB: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", infinityBBytes))
 
 	nbInfinityABytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(nbInfinityABytes, pk.NbInfinityA)
 	gnarkOutput.NbInfinityA = nbInfinityABytes
 
-	stringOutputFile.WriteString("NbInfinityA: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.NbInfinityA))
+	//stringOutputFile.WriteString("NbInfinityA: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.NbInfinityA))
 
 	nbInfinityBBytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(nbInfinityBBytes, pk.NbInfinityB)
 	gnarkOutput.NbInfinityB = nbInfinityBBytes
 
-	stringOutputFile.WriteString("NbInfinityB: ")
-	stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.NbInfinityB))
+	//stringOutputFile.WriteString("NbInfinityB: ")
+	//stringOutputFile.WriteString(fmt.Sprintf("%x\n", pk.NbInfinityB))
 
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
@@ -304,11 +304,11 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	// stringOutputFile.WriteString("WireValues: ")
 	// stringOutputFile.WriteString(fmt.Sprintf("%x\n", wireValues))
 
-	stringOutputFile.WriteString("WireValues Non-Mont: [")
-	for _, w := range wireValues {
-		stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
-	}
-	stringOutputFile.WriteString("]\n")
+	//stringOutputFile.WriteString("WireValues Non-Mont: [")
+	//for _, w := range wireValues {
+	//	stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
+	//}
+	//stringOutputFile.WriteString("]\n")
 
 	start := time.Now()
 	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
@@ -340,36 +340,36 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		gnarkOutput.SolutionB = write_to_wasm_array(solution.B)
 		gnarkOutput.SolutionC = write_to_wasm_array(solution.C)
 
-		stringOutputFile.WriteString("SolutionA: [")
-		for _, a := range solution.A {
-			stringOutputFile.WriteString(fmt.Sprintf("%x,", a))
-		}
-		stringOutputFile.WriteString("]\n")
-		stringOutputFile.WriteString("SolutionA Non-Mont: [")
-		for _, a := range solution.A {
-			stringOutputFile.WriteString(fmt.Sprintf("%s,", a.String()))
-		}
-		stringOutputFile.WriteString("]\n")
-		stringOutputFile.WriteString("SolutionB: [")
-		for _, b := range solution.B {
-			stringOutputFile.WriteString(fmt.Sprintf("%x,", b))
-		}
-		stringOutputFile.WriteString("]\n")
-		stringOutputFile.WriteString("SolutionB Non-Mont: [")
-		for _, b := range solution.B {
-			stringOutputFile.WriteString(fmt.Sprintf("%s,", b.String()))
-		}
-		stringOutputFile.WriteString("]\n")
-		stringOutputFile.WriteString("SolutionC: [")
-		for _, c := range solution.C {
-			stringOutputFile.WriteString(fmt.Sprintf("%x,", c))
-		}
-		stringOutputFile.WriteString("]\n")
-		stringOutputFile.WriteString("SolutionC Non-Mont: [")
-		for _, c := range solution.C {
-			stringOutputFile.WriteString(fmt.Sprintf("%s,", c.String()))
-		}
-		stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("SolutionA: [")
+		//for _, a := range solution.A {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%x,", a))
+		//}
+		//stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("SolutionA Non-Mont: [")
+		//for _, a := range solution.A {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%s,", a.String()))
+		//}
+		//stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("SolutionB: [")
+		//for _, b := range solution.B {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%x,", b))
+		//}
+		//stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("SolutionB Non-Mont: [")
+		//for _, b := range solution.B {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%s,", b.String()))
+		//}
+		//stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("SolutionC: [")
+		//for _, c := range solution.C {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%x,", c))
+		//}
+		//stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("SolutionC Non-Mont: [")
+		//for _, c := range solution.C {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%s,", c.String()))
+		//}
+		//stringOutputFile.WriteString("]\n")
 		// h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
 		// gnarkOutput.CheckH = write_to_wasm_array(h)
 
@@ -382,22 +382,22 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		DomainGeneratorInvBytes := pk.Domain.GeneratorInv.BytesMont()
 		gnarkOutput.DomainGeneratorInv = DomainGeneratorInvBytes[:]
 
-		stringOutputFile.WriteString("DomainFrMultiplicativeGen: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainFrMultiplicativeGenBytes))
-		stringOutputFile.WriteString("DomainFrMultiplicativeGen Non-Mont: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.FrMultiplicativeGen.String()))
-		stringOutputFile.WriteString("DomainFrMultiplicativeGenInv: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainFrMultiplicativeGenInvBytes))
-		stringOutputFile.WriteString("DomainFrMultiplicativeGenInv Non-Mont: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.FrMultiplicativeGenInv.String()))
-		stringOutputFile.WriteString("DomainCardinalityInv: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainCardinalityInvBytes))
-		stringOutputFile.WriteString("DomainCardinalityInv Non-Mont: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.CardinalityInv.String()))
-		stringOutputFile.WriteString("DomainGeneratorInv: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainGeneratorInvBytes))
-		stringOutputFile.WriteString("DomainGeneratorInv Non-Mont: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.GeneratorInv.String()))
+		//stringOutputFile.WriteString("DomainFrMultiplicativeGen: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainFrMultiplicativeGenBytes))
+		//stringOutputFile.WriteString("DomainFrMultiplicativeGen Non-Mont: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.FrMultiplicativeGen.String()))
+		//stringOutputFile.WriteString("DomainFrMultiplicativeGenInv: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainFrMultiplicativeGenInvBytes))
+		//stringOutputFile.WriteString("DomainFrMultiplicativeGenInv Non-Mont: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.FrMultiplicativeGenInv.String()))
+		//stringOutputFile.WriteString("DomainCardinalityInv: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainCardinalityInvBytes))
+		//stringOutputFile.WriteString("DomainCardinalityInv Non-Mont: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.CardinalityInv.String()))
+		//stringOutputFile.WriteString("DomainGeneratorInv: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%x\n", DomainGeneratorInvBytes))
+		//stringOutputFile.WriteString("DomainGeneratorInv Non-Mont: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%s\n", pk.Domain.GeneratorInv.String()))
 
 		// stringOutputFile.WriteString("CheckH: [")
 		// for _, h := range h {
@@ -433,13 +433,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		close(chWireValuesA)
 		gnarkOutput.WireValuesA = write_to_wasm_array(wireValuesA)
 
-		stringOutputFile.WriteString("WireValuesA: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%x\n", wireValuesA))
-		stringOutputFile.WriteString("WireValuesA Non-Mont: [")
-		for _, w := range wireValuesA {
-			stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
-		}
-		stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("WireValuesA: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%x\n", wireValuesA))
+		//stringOutputFile.WriteString("WireValuesA Non-Mont: [")
+		//for _, w := range wireValuesA {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
+		//}
+		//stringOutputFile.WriteString("]\n")
 	}()
 	go func() {
 		wireValuesB = make([]fr.Element, len(wireValues)-int(pk.NbInfinityB))
@@ -453,13 +453,13 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 		close(chWireValuesB)
 		gnarkOutput.WireValuesB = write_to_wasm_array(wireValuesB)
 
-		stringOutputFile.WriteString("WireValuesB: ")
-		stringOutputFile.WriteString(fmt.Sprintf("%x\n", wireValuesB))
-		stringOutputFile.WriteString("WireValuesB Non-Mont: [")
-		for _, w := range wireValuesB {
-			stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
-		}
-		stringOutputFile.WriteString("]\n")
+		//stringOutputFile.WriteString("WireValuesB: ")
+		//stringOutputFile.WriteString(fmt.Sprintf("%x\n", wireValuesB))
+		//stringOutputFile.WriteString("WireValuesB Non-Mont: [")
+		//for _, w := range wireValuesB {
+		//	stringOutputFile.WriteString(fmt.Sprintf("%s,", w.String()))
+		//}
+		//stringOutputFile.WriteString("]\n")
 	}()
 
 	// sample random r and s
