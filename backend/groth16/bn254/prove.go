@@ -386,7 +386,6 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 }
 
 // ExtractIntermediateData extracts intermediate data from the proving process.
-
 func ExtractIntermediateData(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*GnarkOutput, error) {
 	gnarkOutput := new(GnarkOutput)
 

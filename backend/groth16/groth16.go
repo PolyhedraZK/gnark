@@ -206,6 +206,15 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 	}
 }
 
+func ExtractIntermediateData(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*groth16_bn254.GnarkOutput, error) {
+	switch _r1cs := r1cs.(type) {
+	case *cs_bn254.R1CS:
+		return groth16_bn254.ExtractIntermediateData(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
 // Setup runs groth16.Setup with provided R1CS and outputs a key pair associated with the circuit.
 //
 // Note that careful consideration must be given to this step in a production environment.
