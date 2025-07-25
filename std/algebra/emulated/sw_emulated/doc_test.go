@@ -74,7 +74,7 @@ func ExampleCurve() {
 	} else {
 		fmt.Println("public witness")
 	}
-	proof, _, err := groth16.Prove(ccs, pk, secretWitness)
+	proof, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic(err)
 	} else {

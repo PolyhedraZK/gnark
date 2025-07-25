@@ -259,8 +259,7 @@ var (
 			return pk, vk, func() any { return groth16.NewProvingKey(curve) }, func() any { return groth16.NewVerifyingKey(curve) }, func() any { return groth16.NewProof(curve) }, err
 		},
 		prove: func(ccs constraint.ConstraintSystem, pk any, fullWitness witness.Witness, opts ...backend.ProverOption) (proof any, err error) {
-			proof, _, err = groth16.Prove(ccs, pk.(groth16.ProvingKey), fullWitness, opts...)
-			return proof, err
+			return groth16.Prove(ccs, pk.(groth16.ProvingKey), fullWitness, opts...)
 		},
 		verify: func(proof, vk any, publicWitness witness.Witness, opts ...backend.VerifierOption) error {
 			return groth16.Verify(proof.(groth16.Proof), vk.(groth16.VerifyingKey), publicWitness, opts...)

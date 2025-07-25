@@ -58,7 +58,7 @@ func computeInnerProof(field, outer *big.Int) (constraint.ConstraintSystem, grot
 	if err != nil {
 		panic(err)
 	}
-	innerProof, _, err := groth16.Prove(innerCcs, innerPK, innerWitness, stdgroth16.GetNativeProverOptions(outer, field))
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, stdgroth16.GetNativeProverOptions(outer, field))
 	if err != nil {
 		panic(err)
 	}
@@ -148,7 +148,7 @@ func Example_emulated() {
 	}
 
 	// construct the groth16 proof of verifying Groth16 proof in-circuit
-	outerProof, _, err := groth16.Prove(ccs, pk, secretWitness)
+	outerProof, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic("proving failed: " + err.Error())
 	}

@@ -58,7 +58,7 @@ func getInner(assert *test.Assert, field *big.Int) (constraint.ConstraintSystem,
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	innerProof, _, err := groth16.Prove(innerCcs, innerPK, innerWitness)
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness)
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
@@ -363,7 +363,7 @@ func getInnerCommitment(assert *test.Assert, field, outer *big.Int) (constraint.
 	}
 	innerWitness, err := frontend.NewWitness(innerAssignment, field)
 	assert.NoError(err)
-	innerProof, _, err := groth16.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
+	innerProof, err := groth16.Prove(innerCcs, innerPK, innerWitness, GetNativeProverOptions(outer, field))
 	assert.NoError(err)
 	innerPubWitness, err := innerWitness.Public()
 	assert.NoError(err)
@@ -503,7 +503,7 @@ func getInnerParametric(assert *test.Assert, nbConstraints int, field, outer *bi
 	}
 	dummyWitness, err := frontend.NewWitness(dummyAssignment, field)
 	assert.NoError(err)
-	dummyProof, _, err := groth16.Prove(dummyCcs, dummyPK, dummyWitness, GetNativeProverOptions(outer, field))
+	dummyProof, err := groth16.Prove(dummyCcs, dummyPK, dummyWitness, GetNativeProverOptions(outer, field))
 	assert.NoError(err)
 	dummyPubWitness, err := dummyWitness.Public()
 	assert.NoError(err)

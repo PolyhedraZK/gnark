@@ -162,7 +162,7 @@ func prover(ccsReader, challengeReader, pkReader io.Reader, proofWriter io.Write
 		return fmt.Errorf("failed to create witness: %v", err)
 	}
 	// generate the proof
-	proof, _, err := groth16.Prove(&ccs, &pk, witness)
+	proof, err := groth16.Prove(&ccs, &pk, witness)
 	if err != nil {
 		return fmt.Errorf("failed to generate proof: %v", err)
 	}

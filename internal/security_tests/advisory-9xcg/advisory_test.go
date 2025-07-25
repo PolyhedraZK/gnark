@@ -63,7 +63,7 @@ func TestAdvisory_ghsa_9xcg_3q8v_7fq6(t *testing.T) {
 	// run the setup and prover
 	pk, vk, err := groth16.Setup(ccs)
 	assert.NoError(err, "setup failed")
-	proof, _, err := groth16.Prove(ccs, pk, witness)
+	proof, err := groth16.Prove(ccs, pk, witness)
 	assert.NoError(err, "proof failed")
 
 	// sanity check, check that the proof verifies

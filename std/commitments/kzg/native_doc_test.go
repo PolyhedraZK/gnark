@@ -123,7 +123,7 @@ func Example_native() {
 	}
 
 	// construct the groth16 proof of verifying KZG commitment opening in-circuit
-	circuitProof, _, err := groth16.Prove(ccs, pk, secretWitness)
+	circuitProof, err := groth16.Prove(ccs, pk, secretWitness)
 	if err != nil {
 		panic("proving failed: " + err.Error())
 	}
