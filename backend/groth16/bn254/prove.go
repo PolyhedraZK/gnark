@@ -6,7 +6,15 @@
 package groth16
 
 import (
+	"encoding/binary"
 	"fmt"
+	"math/big"
+	"os"
+	"runtime"
+	"time"
+
+	"bytes"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bn254"
 	"github.com/consensys/gnark-crypto/ecc/bn254/fr"
@@ -20,9 +28,6 @@ import (
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
-	"math/big"
-	"runtime"
-	"time"
 
 	fcs "github.com/consensys/gnark/frontend/cs"
 )
@@ -47,8 +52,75 @@ func (proof *Proof) CurveID() ecc.ID {
 	return curve.ID
 }
 
+func write_G1_to_wasm_array(array []curve.G1Affine) []byte {
+	array_length := len(array)
+	wasm_array := make([]byte, array_length*64+8)
+	lengthBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(lengthBytes, uint64(array_length))
+	copy(wasm_array[:8], lengthBytes)
+
+	for i, element := range array {
+		elementX := element.X
+		elementY := element.Y
+		elementXBytes := elementX.BytesMont()
+		elementYBytes := elementY.BytesMont()
+		// Keep as little-endian (no byte reversal needed)
+		copy(wasm_array[8+i*64:8+i*64+32], elementXBytes[:])
+		copy(wasm_array[8+i*64+32:8+i*64+64], elementYBytes[:])
+	}
+	return wasm_array
+}
+
+func write_G2_to_wasm_array(array []curve.G2Affine) []byte {
+	array_length := len(array)
+	wasm_array := make([]byte, array_length*128+8)
+	lengthBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(lengthBytes, uint64(array_length))
+	copy(wasm_array[:8], lengthBytes)
+
+	for i, element := range array {
+		elementX := element.X
+		elementY := element.Y
+		elementXA0 := elementX.A0
+		elementXA1 := elementX.A1
+		elementYA0 := elementY.A0
+		elementYA1 := elementY.A1
+		elementXA0Bytes := elementXA0.BytesMont()
+		elementXA1Bytes := elementXA1.BytesMont()
+		elementYA0Bytes := elementYA0.BytesMont()
+		elementYA1Bytes := elementYA1.BytesMont()
+		// Keep as little-endian (no byte reversal needed)
+		copy(wasm_array[8+i*128:8+i*128+32], elementXA0Bytes[:])
+		copy(wasm_array[8+i*128+32:8+i*128+64], elementXA1Bytes[:])
+		copy(wasm_array[8+i*128+64:8+i*128+96], elementYA0Bytes[:])
+		copy(wasm_array[8+i*128+96:8+i*128+128], elementYA1Bytes[:])
+	}
+	return wasm_array
+}
+
+func write_to_wasm_array(array []fr.Element) []byte {
+	array_length := len(array)
+	wasm_array := make([]byte, array_length*32+8)
+	// Write array length as 32-bit little endian
+	lengthBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(lengthBytes, uint64(array_length))
+	copy(wasm_array[:8], lengthBytes)
+
+	// Write each fr.Element as little endian bytes
+	for i, element := range array {
+		// Get element bytes in Montgomery form (already little-endian)
+		elementBytes := element.BytesMont()
+		// Keep as little-endian (no byte reversal needed)
+		copy(wasm_array[8+i*32:8+(i+1)*32], elementBytes[:])
+	}
+	return wasm_array
+}
+
 // Prove generates the proof of knowledge of a r1cs with full witness (secret + public part).
 func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
+	if os.Getenv("DISABLE_GOROUTINE") == "1" {
+		return serialProve(r1cs, pk, fullWitness, opts...)
+	}
 	opt, err := backend.NewProverConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("new prover config: %w", err)
@@ -307,6 +379,551 @@ func Prove(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...b
 	if err := <-chKrsDone; err != nil {
 		return nil, err
 	}
+
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+
+	return proof, nil
+}
+
+// ExtractIntermediateData extracts intermediate data from the proving process.
+func ExtractIntermediateData(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*GnarkOutput, error) {
+	gnarkOutput := new(GnarkOutput)
+
+	// Capture ProvingKey G1 generators
+	alphaBytes := pk.G1.Alpha.X.BytesMont()
+	alphaBytesY := pk.G1.Alpha.Y.BytesMont()
+	gnarkOutput.PkG1Alpha = append(alphaBytes[:], alphaBytesY[:]...)
+
+	betaBytes := pk.G1.Beta.X.BytesMont()
+	betaBytesY := pk.G1.Beta.Y.BytesMont()
+	gnarkOutput.PkG1Beta = append(betaBytes[:], betaBytesY[:]...)
+
+	deltaBytes := pk.G1.Delta.X.BytesMont()
+	deltaBytesY := pk.G1.Delta.Y.BytesMont()
+	gnarkOutput.PkG1Delta = append(deltaBytes[:], deltaBytesY[:]...)
+
+	// Capture ProvingKey G2 generators
+	g2BetaXA0 := pk.G2.Beta.X.A0.BytesMont()
+	g2BetaXA1 := pk.G2.Beta.X.A1.BytesMont()
+	g2BetaYA0 := pk.G2.Beta.Y.A0.BytesMont()
+	g2BetaYA1 := pk.G2.Beta.Y.A1.BytesMont()
+	gnarkOutput.PkG2Beta = append(g2BetaXA0[:], g2BetaXA1[:]...)
+	gnarkOutput.PkG2Beta = append(gnarkOutput.PkG2Beta, g2BetaYA0[:]...)
+	gnarkOutput.PkG2Beta = append(gnarkOutput.PkG2Beta, g2BetaYA1[:]...)
+
+	g2DeltaXA0 := pk.G2.Delta.X.A0.BytesMont()
+	g2DeltaXA1 := pk.G2.Delta.X.A1.BytesMont()
+	g2DeltaYA0 := pk.G2.Delta.Y.A0.BytesMont()
+	g2DeltaYA1 := pk.G2.Delta.Y.A1.BytesMont()
+	gnarkOutput.PkG2Delta = append(g2DeltaXA0[:], g2DeltaXA1[:]...)
+	gnarkOutput.PkG2Delta = append(gnarkOutput.PkG2Delta, g2DeltaYA0[:]...)
+	gnarkOutput.PkG2Delta = append(gnarkOutput.PkG2Delta, g2DeltaYA1[:]...)
+
+	// Capture Domain information
+	cardinalityBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(cardinalityBytes, uint64(pk.Domain.Cardinality))
+	gnarkOutput.DomainCardinality = cardinalityBytes
+	generatorBytes := pk.Domain.Generator.BytesMont()
+	gnarkOutput.DomainGenerator = generatorBytes[:]
+
+	// Capture Infinity masks
+	infinityABytes := make([]byte, len(pk.InfinityA)+8)
+	infinityALength := len(pk.InfinityA)
+	lengthBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(lengthBytes, uint64(infinityALength))
+	copy(infinityABytes[:8], lengthBytes)
+	for i, b := range pk.InfinityA {
+		if b {
+			infinityABytes[8+i] = 1
+		} else {
+			infinityABytes[8+i] = 0
+		}
+	}
+	gnarkOutput.InfinityA = infinityABytes
+
+	infinityBBytes := make([]byte, len(pk.InfinityB)+8)
+	infinityBBytesLength := len(pk.InfinityB)
+	lengthBytes = make([]byte, 8)
+	binary.LittleEndian.PutUint64(lengthBytes, uint64(infinityBBytesLength))
+	copy(infinityBBytes[:8], lengthBytes)
+	for i, b := range pk.InfinityB {
+		if b {
+			infinityBBytes[8+i] = 1
+		} else {
+			infinityBBytes[8+i] = 0
+		}
+	}
+	gnarkOutput.InfinityB = infinityBBytes
+
+	nbInfinityABytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(nbInfinityABytes, pk.NbInfinityA)
+	gnarkOutput.NbInfinityA = nbInfinityABytes
+
+	nbInfinityBBytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(nbInfinityBBytes, pk.NbInfinityB)
+	gnarkOutput.NbInfinityB = nbInfinityBBytes
+
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new prover config: %w", err)
+	}
+	if opt.HashToFieldFn == nil {
+		opt.HashToFieldFn = hash_to_field.New([]byte(constraint.CommitmentDst))
+	}
+
+	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "none").Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
+
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+
+	proof := &Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
+
+	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
+
+	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
+
+	// override hints
+	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
+	solverOpts = append(solverOpts, solver.OverrideHint(bsb22ID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+		i := int(in[0].Int64())
+		in = in[1:]
+		privateCommittedValues[i] = make([]fr.Element, len(commitmentInfo[i].PrivateCommitted))
+		hashed := in[:len(commitmentInfo[i].PublicAndCommitmentCommitted)]
+		committed := in[+len(hashed):]
+		for j, inJ := range committed {
+			privateCommittedValues[i][j].SetBigInt(inJ)
+		}
+
+		var err error
+		if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
+			return err
+		}
+
+		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
+		hashBts := opt.HashToFieldFn.Sum(nil)
+		opt.HashToFieldFn.Reset()
+		nbBuf := fr.Bytes
+		if opt.HashToFieldFn.Size() < fr.Bytes {
+			nbBuf = opt.HashToFieldFn.Size()
+		}
+		var res fr.Element
+		res.SetBytes(hashBts[:nbBuf])
+		res.BigInt(out[0])
+		return nil
+	}))
+
+	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	solution := _solution.(*cs.R1CSSolution)
+	wireValues := []fr.Element(solution.W)
+
+	start := time.Now()
+	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
+
+	for i := range pk.CommitmentKeys {
+		var err error
+		if poks[i], err = pk.CommitmentKeys[i].ProveKnowledge(privateCommittedValues[i]); err != nil {
+			return nil, err
+		}
+	}
+	// compute challenge for folding the PoKs from the commitments
+	commitmentsSerialized := make([]byte, fr.Bytes*len(commitmentInfo))
+	for i := range commitmentInfo {
+		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[commitmentInfo[i].CommitmentIndex].Marshal())
+	}
+	challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+		return nil, err
+	}
+
+	chHDone := make(chan struct{}, 1)
+	go func() {
+		gnarkOutput.SolutionA = write_to_wasm_array(solution.A)
+		gnarkOutput.SolutionB = write_to_wasm_array(solution.B)
+		gnarkOutput.SolutionC = write_to_wasm_array(solution.C)
+
+		DomainFrMultiplicativeGenBytes := pk.Domain.FrMultiplicativeGen.BytesMont()
+		gnarkOutput.DomainFrMultiplicativeGen = DomainFrMultiplicativeGenBytes[:]
+		DomainFrMultiplicativeGenInvBytes := pk.Domain.FrMultiplicativeGenInv.BytesMont()
+		gnarkOutput.DomainFrMultiplicativeGenInv = DomainFrMultiplicativeGenInvBytes[:]
+		DomainCardinalityInvBytes := pk.Domain.CardinalityInv.BytesMont()
+		gnarkOutput.DomainCardinalityInv = DomainCardinalityInvBytes[:]
+		DomainGeneratorInvBytes := pk.Domain.GeneratorInv.BytesMont()
+		gnarkOutput.DomainGeneratorInv = DomainGeneratorInvBytes[:]
+
+		solution.A = nil
+		solution.B = nil
+		solution.C = nil
+		chHDone <- struct{}{}
+	}()
+
+	// we need to copy and filter the wireValues for each multi exp
+	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
+	var wireValuesA, wireValuesB []fr.Element
+	chWireValuesA, chWireValuesB := make(chan struct{}, 1), make(chan struct{}, 1)
+
+	go func() {
+		wireValuesA = make([]fr.Element, len(wireValues)-int(pk.NbInfinityA))
+		for i, j := 0, 0; j < len(wireValuesA); i++ {
+			if pk.InfinityA[i] {
+				continue
+			}
+			wireValuesA[j] = wireValues[i]
+			j++
+		}
+		close(chWireValuesA)
+		gnarkOutput.WireValuesA = write_to_wasm_array(wireValuesA)
+
+	}()
+	go func() {
+		wireValuesB = make([]fr.Element, len(wireValues)-int(pk.NbInfinityB))
+		for i, j := 0, 0; j < len(wireValuesB); i++ {
+			if pk.InfinityB[i] {
+				continue
+			}
+			wireValuesB[j] = wireValues[i]
+			j++
+		}
+		close(chWireValuesB)
+		gnarkOutput.WireValuesB = write_to_wasm_array(wireValuesB)
+
+	}()
+
+	// sample random r and s
+	var r, s big.Int
+	var _r, _s, _kr fr.Element
+	if _, err := _r.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := _s.SetRandom(); err != nil {
+		return nil, err
+	}
+	_kr.Mul(&_r, &_s).Neg(&_kr)
+
+	_r.BigInt(&r)
+	_s.BigInt(&s)
+
+	rBytes := _r.BytesMont()
+	gnarkOutput.R = rBytes[:]
+	sBytes := _s.BytesMont()
+	gnarkOutput.S = sBytes[:]
+	krBytes := _kr.BytesMont()
+	gnarkOutput.Kr = krBytes[:]
+
+	gnarkOutput.PkB = write_G1_to_wasm_array(pk.G1.B)
+
+	gnarkOutput.PkA = write_G1_to_wasm_array(pk.G1.A)
+
+	gnarkOutput.PkZ = write_G1_to_wasm_array(pk.G1.Z)
+	gnarkOutput.PkK = write_G1_to_wasm_array(pk.G1.K)
+
+	// filter the wire values if needed
+	// TODO Perf @Tabaie worst memory allocation offender
+	toRemove := commitmentInfo.GetPrivateCommitted()
+	toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
+	_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+	gnarkOutput.WireValuesFiltered = write_to_wasm_array(_wireValues)
+
+	gnarkOutput.PkG2B = write_G2_to_wasm_array(pk.G2.B)
+
+	// wait for FFT to end, as it uses all our CPUs
+	<-chHDone
+
+	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
+
+	return gnarkOutput, nil
+}
+
+type GnarkOutput struct {
+	/* Intermediate data */
+	SolutionA          []byte
+	SolutionB          []byte
+	SolutionC          []byte
+	WireValuesA        []byte
+	WireValuesB        []byte
+	WireValuesFiltered []byte
+	R                  []byte
+	S                  []byte
+	Kr                 []byte
+
+	/* ProvingKey elements */
+	PkA       []byte
+	PkB       []byte
+	PkZ       []byte
+	PkK       []byte
+	PkG2B     []byte
+	PkG1Alpha []byte
+	PkG1Beta  []byte
+	PkG1Delta []byte
+	PkG2Beta  []byte
+	PkG2Delta []byte
+
+	// Domain information
+	DomainCardinality            []byte
+	DomainCardinalityInv         []byte
+	DomainGenerator              []byte
+	DomainGeneratorInv           []byte
+	DomainFrMultiplicativeGen    []byte
+	DomainFrMultiplicativeGenInv []byte
+
+	// Infinity masks
+	InfinityA   []byte
+	InfinityB   []byte
+	NbInfinityA []byte
+	NbInfinityB []byte
+}
+
+func (gnarkOutput *GnarkOutput) Bytes() []byte {
+	var gnarkOutputBytes bytes.Buffer
+	gnarkOutputBytes.Write(gnarkOutput.SolutionA)
+	gnarkOutputBytes.Write(gnarkOutput.SolutionB)
+	gnarkOutputBytes.Write(gnarkOutput.SolutionC)
+	gnarkOutputBytes.Write(gnarkOutput.WireValuesA)
+	gnarkOutputBytes.Write(gnarkOutput.WireValuesB)
+	gnarkOutputBytes.Write(gnarkOutput.WireValuesFiltered)
+	gnarkOutputBytes.Write(gnarkOutput.R)
+	gnarkOutputBytes.Write(gnarkOutput.S)
+	gnarkOutputBytes.Write(gnarkOutput.Kr)
+	gnarkOutputBytes.Write(gnarkOutput.PkA)
+	gnarkOutputBytes.Write(gnarkOutput.PkB)
+	gnarkOutputBytes.Write(gnarkOutput.PkZ)
+	gnarkOutputBytes.Write(gnarkOutput.PkK)
+	gnarkOutputBytes.Write(gnarkOutput.PkG2B)
+	gnarkOutputBytes.Write(gnarkOutput.PkG1Alpha)
+	gnarkOutputBytes.Write(gnarkOutput.PkG1Beta)
+	gnarkOutputBytes.Write(gnarkOutput.PkG1Delta)
+	gnarkOutputBytes.Write(gnarkOutput.PkG2Beta)
+	gnarkOutputBytes.Write(gnarkOutput.PkG2Delta)
+	gnarkOutputBytes.Write(gnarkOutput.DomainCardinality)
+	gnarkOutputBytes.Write(gnarkOutput.DomainCardinalityInv)
+	gnarkOutputBytes.Write(gnarkOutput.DomainGenerator)
+	gnarkOutputBytes.Write(gnarkOutput.DomainGeneratorInv)
+	gnarkOutputBytes.Write(gnarkOutput.DomainFrMultiplicativeGen)
+	gnarkOutputBytes.Write(gnarkOutput.DomainFrMultiplicativeGenInv)
+	gnarkOutputBytes.Write(gnarkOutput.InfinityA)
+	gnarkOutputBytes.Write(gnarkOutput.InfinityB)
+	gnarkOutputBytes.Write(gnarkOutput.NbInfinityA)
+	gnarkOutputBytes.Write(gnarkOutput.NbInfinityB)
+	return gnarkOutputBytes.Bytes()
+}
+
+func serialProve(r1cs *cs.R1CS, pk *ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*Proof, error) {
+	opt, err := backend.NewProverConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("new prover config: %w", err)
+	}
+	if opt.HashToFieldFn == nil {
+		opt.HashToFieldFn = hash_to_field.New([]byte(constraint.CommitmentDst))
+	}
+
+	log := logger.Logger().With().Str("curve", r1cs.CurveID().String()).Str("acceleration", "none").
+		Int("nbConstraints", r1cs.GetNbConstraints()).Str("backend", "groth16").Logger()
+
+	commitmentInfo := r1cs.CommitmentInfo.(constraint.Groth16Commitments)
+
+	proof := &Proof{Commitments: make([]curve.G1Affine, len(commitmentInfo))}
+
+	solverOpts := opt.SolverOpts[:len(opt.SolverOpts):len(opt.SolverOpts)]
+
+	privateCommittedValues := make([][]fr.Element, len(commitmentInfo))
+
+	// override hints
+	bsb22ID := solver.GetHintID(fcs.Bsb22CommitmentComputePlaceholder)
+	solverOpts = append(solverOpts, solver.OverrideHint(bsb22ID, func(_ *big.Int, in []*big.Int, out []*big.Int) error {
+		i := int(in[0].Int64())
+		in = in[1:]
+		privateCommittedValues[i] = make([]fr.Element, len(commitmentInfo[i].PrivateCommitted))
+		hashed := in[:len(commitmentInfo[i].PublicAndCommitmentCommitted)]
+		committed := in[+len(hashed):]
+		for j, inJ := range committed {
+			privateCommittedValues[i][j].SetBigInt(inJ)
+		}
+
+		var err error
+		if proof.Commitments[i], err = pk.CommitmentKeys[i].Commit(privateCommittedValues[i]); err != nil {
+			return err
+		}
+
+		opt.HashToFieldFn.Write(constraint.SerializeCommitment(proof.Commitments[i].Marshal(), hashed, (fr.Bits-1)/8+1))
+		hashBts := opt.HashToFieldFn.Sum(nil)
+		opt.HashToFieldFn.Reset()
+		nbBuf := fr.Bytes
+		if opt.HashToFieldFn.Size() < fr.Bytes {
+			nbBuf = opt.HashToFieldFn.Size()
+		}
+		var res fr.Element
+		res.SetBytes(hashBts[:nbBuf])
+		res.BigInt(out[0])
+		return nil
+	}))
+
+	_solution, err := r1cs.Solve(fullWitness, solverOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	solution := _solution.(*cs.R1CSSolution)
+	wireValues := []fr.Element(solution.W)
+
+	start := time.Now()
+	poks := make([]curve.G1Affine, len(pk.CommitmentKeys))
+
+	for i := range pk.CommitmentKeys {
+		var err error
+		if poks[i], err = pk.CommitmentKeys[i].ProveKnowledge(privateCommittedValues[i]); err != nil {
+			return nil, err
+		}
+	}
+	// compute challenge for folding the PoKs from the commitments
+	commitmentsSerialized := make([]byte, fr.Bytes*len(commitmentInfo))
+	for i := range commitmentInfo {
+		copy(commitmentsSerialized[fr.Bytes*i:], wireValues[commitmentInfo[i].CommitmentIndex].Marshal())
+	}
+	challenge, err := fr.Hash(commitmentsSerialized, []byte("G16-BSB22"), 1)
+	if err != nil {
+		return nil, err
+	}
+	if _, err = proof.CommitmentPok.Fold(poks, challenge[0], ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+		return nil, err
+	}
+
+	// H (witness reduction / FFT part)
+	var h []fr.Element
+	{
+		h = computeH(solution.A, solution.B, solution.C, &pk.Domain)
+		solution.A = nil
+		solution.B = nil
+		solution.C = nil
+	}
+
+	// we need to copy and filter the wireValues for each multi exp
+	// as pk.G1.A, pk.G1.B and pk.G2.B may have (a significant) number of point at infinity
+	var wireValuesA, wireValuesB []fr.Element
+	{
+		wireValuesA = make([]fr.Element, len(wireValues)-int(pk.NbInfinityA))
+		for i, j := 0, 0; j < len(wireValuesA); i++ {
+			if pk.InfinityA[i] {
+				continue
+			}
+			wireValuesA[j] = wireValues[i]
+			j++
+		}
+	}
+	{
+		wireValuesB = make([]fr.Element, len(wireValues)-int(pk.NbInfinityB))
+		for i, j := 0, 0; j < len(wireValuesB); i++ {
+			if pk.InfinityB[i] {
+				continue
+			}
+			wireValuesB[j] = wireValues[i]
+			j++
+		}
+	}
+
+	// sample random r and s
+	var r, s big.Int
+	var _r, _s, _kr fr.Element
+	if _, err := _r.SetRandom(); err != nil {
+		return nil, err
+	}
+	if _, err := _s.SetRandom(); err != nil {
+		return nil, err
+	}
+	_kr.Mul(&_r, &_s).Neg(&_kr)
+
+	_r.BigInt(&r)
+	_s.BigInt(&s)
+
+	// computes r[δ], s[δ], kr[δ]
+	deltas := curve.BatchScalarMultiplicationG1(&pk.G1.Delta, []fr.Element{_r, _s, _kr})
+
+	var bs1, ar curve.G1Jac
+
+	// computeBS1
+	{
+		if _, err := bs1.MultiExp(pk.G1.B, wireValuesB, ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+			return nil, err
+		}
+		bs1.AddMixed(&pk.G1.Beta)
+		bs1.AddMixed(&deltas[1])
+	}
+
+	// computeAR1
+	{
+		if _, err := ar.MultiExp(pk.G1.A, wireValuesA, ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+			return nil, err
+		}
+		ar.AddMixed(&pk.G1.Alpha)
+		ar.AddMixed(&deltas[0])
+		proof.Ar.FromJacobian(&ar)
+	}
+
+	// computeKRS
+	{
+		// we could NOT split the Krs multiExp in 2, and just append pk.G1.K and pk.G1.Z
+		// however, having similar lengths for our tasks helps with parallelism
+
+		var krs, krs2, p1 curve.G1Jac
+		sizeH := int(pk.Domain.Cardinality - 1) // comes from the fact the deg(H)=(n-1)+(n-1)-n=n-2
+
+		_, err := krs2.MultiExp(pk.G1.Z, h[:sizeH], ecc.MultiExpConfig{NbTasks: 1})
+		if err != nil {
+			return nil, err
+		}
+
+		// filter the wire values if needed
+		// TODO Perf @Tabaie worst memory allocation offender
+		toRemove := commitmentInfo.GetPrivateCommitted()
+		toRemove = append(toRemove, commitmentInfo.CommitmentIndexes())
+		_wireValues := filterHeap(wireValues[r1cs.GetNbPublicVariables():], r1cs.GetNbPublicVariables(), internal.ConcatAll(toRemove...))
+
+		if _, err = krs.MultiExp(pk.G1.K, _wireValues, ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+			return nil, err
+		}
+		krs.AddMixed(&deltas[2])
+
+		krs.AddAssign(&krs2)
+
+		p1.ScalarMultiplication(&ar, &s)
+		krs.AddAssign(&p1)
+
+		p1.ScalarMultiplication(&bs1, &r)
+		krs.AddAssign(&p1)
+
+		proof.Krs.FromJacobian(&krs)
+	}
+
+	// computeBS2
+	computeBS2 := func() error {
+		// Bs2 (1 multi exp G2 - size = len(wires))
+		var Bs, deltaS curve.G2Jac
+
+		if _, err := Bs.MultiExp(pk.G2.B, wireValuesB, ecc.MultiExpConfig{NbTasks: 1}); err != nil {
+			return err
+		}
+
+		deltaS.FromAffine(&pk.G2.Delta)
+		deltaS.ScalarMultiplication(&deltaS, &s)
+		Bs.AddAssign(&deltaS)
+		Bs.AddMixed(&pk.G2.Beta)
+
+		proof.Bs.FromJacobian(&Bs)
+		return nil
+	}
+
+	// wait for FFT to end, as it uses all our CPUs
+
+	// schedule our proof part computations
+	if err := computeBS2(); err != nil {
+		return nil, err
+	}
+
+	// wait for all parts of the proof to be computed.
 
 	log.Debug().Dur("took", time.Since(start)).Msg("prover done")
 

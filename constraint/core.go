@@ -11,7 +11,8 @@ import (
 	"github.com/consensys/gnark-crypto/ecc"
 	"github.com/consensys/gnark/constraint/solver"
 	"github.com/consensys/gnark/debug"
-	"github.com/consensys/gnark/internal/tinyfield"
+	"github.com/consensys/gnark/internal/gkr/gkrinfo"
+	"github.com/consensys/gnark/internal/smallfields"
 	"github.com/consensys/gnark/internal/utils"
 	"github.com/consensys/gnark/logger"
 	"github.com/consensys/gnark/profile"
@@ -124,7 +125,7 @@ type System struct {
 	lbWireLevel []Level `cbor:"-"` // at which level we solve a wire. init at -1.
 
 	CommitmentInfo Commitments
-	GkrInfo        GkrInfo
+	GkrInfo        gkrinfo.StoringInfo
 
 	genericHint BlueprintID
 }
@@ -202,7 +203,7 @@ func (system *System) CheckSerializationHeader() error {
 		return fmt.Errorf("when parsing serialized modulus: %s", system.ScalarField)
 	}
 	curveID := utils.FieldToCurve(scalarField)
-	if curveID == ecc.UNKNOWN && scalarField.Cmp(tinyfield.Modulus()) != 0 {
+	if curveID == ecc.UNKNOWN && !(smallfields.IsSmallField(scalarField)) {
 		return fmt.Errorf("unsupported scalar field %s", scalarField.Text(16))
 	}
 	system.q = new(big.Int).Set(scalarField)
@@ -470,11 +471,11 @@ func putBuffer(buf *[]uint32) {
 	bufPool.Put(buf)
 }
 
-func (system *System) AddGkr(gkr GkrInfo) error {
+func (system *System) AddGkr(gkrInfo gkrinfo.StoringInfo) error {
 	if system.GkrInfo.Is() {
 		return fmt.Errorf("currently only one GKR sub-circuit per SNARK is supported")
 	}
 
-	system.GkrInfo = gkr
+	system.GkrInfo = gkrInfo
 	return nil
 }

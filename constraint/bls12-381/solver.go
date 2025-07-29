@@ -8,17 +8,21 @@ package cs
 import (
 	"errors"
 	"fmt"
-	"github.com/consensys/gnark-crypto/ecc"
-	"github.com/consensys/gnark-crypto/field/pool"
-	"github.com/consensys/gnark/constraint"
-	csolver "github.com/consensys/gnark/constraint/solver"
-	"github.com/rs/zerolog"
 	"math"
 	"math/big"
 	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
+
+	"github.com/consensys/gnark-crypto/ecc"
+	"github.com/consensys/gnark-crypto/field/pool"
+	"github.com/consensys/gnark/constraint"
+	csolver "github.com/consensys/gnark/constraint/solver"
+	"github.com/consensys/gnark/constraint/solver/gkrgates"
+	gkr "github.com/consensys/gnark/internal/gkr/bls12-381"
+	"github.com/consensys/gnark/internal/gkr/gkrtypes"
+	"github.com/rs/zerolog"
 
 	"github.com/consensys/gnark-crypto/ecc/bls12-381/fr"
 )
@@ -47,10 +51,14 @@ type solver struct {
 func newSolver(cs *system, witness fr.Vector, opts ...csolver.Option) (*solver, error) {
 	// add GKR options to overwrite the placeholder
 	if cs.GkrInfo.Is() {
-		var gkrData GkrSolvingData
+		var gkrData gkr.SolvingData
+		solvingInfo, err := gkrtypes.StoringToSolvingInfo(cs.GkrInfo, gkrgates.Get)
+		if err != nil {
+			return nil, err
+		}
 		opts = append(opts,
-			csolver.OverrideHint(cs.GkrInfo.SolveHintID, GkrSolveHint(cs.GkrInfo, &gkrData)),
-			csolver.OverrideHint(cs.GkrInfo.ProveHintID, GkrProveHint(cs.GkrInfo.HashName, &gkrData)))
+			csolver.OverrideHint(cs.GkrInfo.SolveHintID, gkr.SolveHint(solvingInfo, &gkrData)),
+			csolver.OverrideHint(cs.GkrInfo.ProveHintID, gkr.ProveHint(cs.GkrInfo.HashName, &gkrData)))
 	}
 	// parse options
 	opt, err := csolver.NewConfig(opts...)
@@ -332,18 +340,18 @@ func (solver *solver) divByCoeff(res *fr.Element, cID uint32) {
 }
 
 // Implement constraint.Solver
-func (s *solver) GetValue(cID, vID uint32) constraint.Element {
-	var r constraint.Element
+func (s *solver) GetValue(cID, vID uint32) constraint.U64 {
+	var r constraint.U64
 	e := s.computeTerm(constraint.Term{CID: cID, VID: vID})
 	copy(r[:], e[:])
 	return r
 }
-func (s *solver) GetCoeff(cID uint32) constraint.Element {
-	var r constraint.Element
+func (s *solver) GetCoeff(cID uint32) constraint.U64 {
+	var r constraint.U64
 	copy(r[:], s.Coefficients[cID][:])
 	return r
 }
-func (s *solver) SetValue(vID uint32, f constraint.Element) {
+func (s *solver) SetValue(vID uint32, f constraint.U64) {
 	s.set(int(vID), *(*fr.Element)(f[:]))
 }
 
@@ -353,7 +361,7 @@ func (s *solver) IsSolved(vID uint32) bool {
 
 // Read interprets input calldata as either a LinearExpression (if R1CS) or a Term (if Plonkish),
 // evaluates it and return the result and the number of uint32 word read.
-func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
+func (s *solver) Read(calldata []uint32) (constraint.U64, int) {
 	if s.Type == constraint.SystemSparseR1CS {
 		if calldata[0] != 1 {
 			panic("invalid calldata")
@@ -369,7 +377,7 @@ func (s *solver) Read(calldata []uint32) (constraint.Element, int) {
 		j += 2
 	}
 
-	var ret constraint.Element
+	var ret constraint.U64
 	copy(ret[:], r[:])
 	return ret, j
 }
@@ -393,7 +401,7 @@ func (solver *solver) processInstruction(pi constraint.PackedInstruction, scratc
 	}
 
 	// blueprint declared "I know how to solve this."
-	if bc, ok := blueprint.(constraint.BlueprintSolvable); ok {
+	if bc, ok := blueprint.(constraint.BlueprintSolvable[constraint.U64]); ok {
 		if err := bc.Solve(solver, inst); err != nil {
 			return solver.wrapErrWithDebugInfo(cID, err)
 		}

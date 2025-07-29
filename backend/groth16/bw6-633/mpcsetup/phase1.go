@@ -10,11 +10,12 @@ import (
 	"crypto/sha256"
 	"errors"
 	"fmt"
+	"math/big"
+
 	"github.com/consensys/gnark-crypto/ecc"
 	curve "github.com/consensys/gnark-crypto/ecc/bw6-633"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/fr"
 	"github.com/consensys/gnark-crypto/ecc/bw6-633/mpcsetup"
-	"math/big"
 )
 
 // SrsCommons are the circuit-independent components of the Groth16 SRS,
@@ -213,10 +214,10 @@ func (p *Phase1) Verify(next *Phase1) error {
 	}
 
 	return mpcsetup.SameRatioMany(
-		p.parameters.G1.Tau,
-		p.parameters.G2.Tau,
-		p.parameters.G1.AlphaTau,
-		p.parameters.G1.BetaTau,
+		next.parameters.G1.Tau,
+		next.parameters.G2.Tau,
+		next.parameters.G1.AlphaTau,
+		next.parameters.G1.BetaTau,
 	)
 }
 

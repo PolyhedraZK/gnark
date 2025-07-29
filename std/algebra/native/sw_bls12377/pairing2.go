@@ -106,6 +106,42 @@ func (c *Curve) AssertIsEqual(P, Q *G1Affine) {
 	P.AssertIsEqual(c.api, *Q)
 }
 
+func (c *Pairing) IsEqual(x, y *GT) frontend.Variable {
+	diff0 := c.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
+	diff1 := c.api.Sub(&x.C0.B0.A1, &y.C0.B0.A1)
+	diff2 := c.api.Sub(&x.C0.B0.A0, &y.C0.B0.A0)
+	diff3 := c.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
+	diff4 := c.api.Sub(&x.C0.B1.A0, &y.C0.B1.A0)
+	diff5 := c.api.Sub(&x.C0.B1.A1, &y.C0.B1.A1)
+	diff6 := c.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
+	diff7 := c.api.Sub(&x.C1.B0.A1, &y.C1.B0.A1)
+	diff8 := c.api.Sub(&x.C1.B0.A0, &y.C1.B0.A0)
+	diff9 := c.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
+	diff10 := c.api.Sub(&x.C1.B1.A0, &y.C1.B1.A0)
+	diff11 := c.api.Sub(&x.C1.B1.A1, &y.C1.B1.A1)
+
+	isZero0 := c.api.IsZero(diff0)
+	isZero1 := c.api.IsZero(diff1)
+	isZero2 := c.api.IsZero(diff2)
+	isZero3 := c.api.IsZero(diff3)
+	isZero4 := c.api.IsZero(diff4)
+	isZero5 := c.api.IsZero(diff5)
+	isZero6 := c.api.IsZero(diff6)
+	isZero7 := c.api.IsZero(diff7)
+	isZero8 := c.api.IsZero(diff8)
+	isZero9 := c.api.IsZero(diff9)
+	isZero10 := c.api.IsZero(diff10)
+	isZero11 := c.api.IsZero(diff11)
+
+	return c.api.And(
+		c.api.And(
+			c.api.And(c.api.And(isZero0, isZero1), c.api.And(isZero2, isZero3)),
+			c.api.And(c.api.And(isZero4, isZero5), c.api.And(isZero6, isZero7)),
+		),
+		c.api.And(c.api.And(isZero8, isZero9), c.api.And(isZero10, isZero11)),
+	)
+}
+
 // Neg negates P and returns the result. Does not modify P.
 func (c *Curve) Neg(P *G1Affine) *G1Affine {
 	res := &G1Affine{
@@ -324,6 +360,120 @@ func (p *Pairing) PairingCheck(P []*G1Affine, Q []*G2Affine) error {
 // AssertIsEqual asserts the equality of the target group elements.
 func (p *Pairing) AssertIsEqual(e1, e2 *GT) {
 	e1.AssertIsEqual(p.api, *e2)
+}
+
+func (pr Pairing) MuxG2(sel frontend.Variable, inputs ...*G2Affine) *G2Affine {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	for i := 1; i < len(inputs); i++ {
+		if (inputs[0].Lines == nil) != (inputs[i].Lines == nil) {
+			panic("muxing points with and without precomputed lines")
+		}
+	}
+	var ret G2Affine
+	XA0 := make([]frontend.Variable, len(inputs))
+	XA1 := make([]frontend.Variable, len(inputs))
+	YA0 := make([]frontend.Variable, len(inputs))
+	YA1 := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		XA0[i] = inputs[i].P.X.A0
+		XA1[i] = inputs[i].P.X.A1
+		YA0[i] = inputs[i].P.Y.A0
+		YA1[i] = inputs[i].P.Y.A1
+	}
+	ret.P.X.A0 = selector.Mux(pr.api, sel, XA0...)
+	ret.P.X.A1 = selector.Mux(pr.api, sel, XA1...)
+	ret.P.Y.A0 = selector.Mux(pr.api, sel, YA0...)
+	ret.P.Y.A1 = selector.Mux(pr.api, sel, YA1...)
+
+	if inputs[0].Lines == nil {
+		return &ret
+	}
+
+	// switch precomputed lines
+	ret.Lines = new(lineEvaluations)
+	for j := range inputs[0].Lines[0] {
+		lineR0A0 := make([]frontend.Variable, len(inputs))
+		lineR0A1 := make([]frontend.Variable, len(inputs))
+		lineR1A0 := make([]frontend.Variable, len(inputs))
+		lineR1A1 := make([]frontend.Variable, len(inputs))
+		for k := 0; k < 2; k++ {
+			for i := range inputs {
+				lineR0A0[i] = inputs[i].Lines[k][j].R0.A0
+				lineR0A1[i] = inputs[i].Lines[k][j].R0.A1
+				lineR1A0[i] = inputs[i].Lines[k][j].R1.A0
+				lineR1A1[i] = inputs[i].Lines[k][j].R1.A1
+			}
+			le := &lineEvaluation{
+				R0: fields_bls12377.E2{
+					A0: selector.Mux(pr.api, sel, lineR0A0...),
+					A1: selector.Mux(pr.api, sel, lineR0A1...),
+				},
+				R1: fields_bls12377.E2{
+					A0: selector.Mux(pr.api, sel, lineR1A0...),
+					A1: selector.Mux(pr.api, sel, lineR1A1...),
+				},
+			}
+			ret.Lines[k][j] = le
+		}
+	}
+
+	return &ret
+}
+
+func (pr Pairing) MuxGt(sel frontend.Variable, inputs ...*GT) *GT {
+	if len(inputs) == 0 {
+		return nil
+	}
+	if len(inputs) == 1 {
+		pr.api.AssertIsEqual(sel, 0)
+		return inputs[0]
+	}
+	var ret GT
+	C0B0A0s := make([]frontend.Variable, len(inputs))
+	C0B0A1s := make([]frontend.Variable, len(inputs))
+	C0B1A0s := make([]frontend.Variable, len(inputs))
+	C0B1A1s := make([]frontend.Variable, len(inputs))
+	C0B2A0s := make([]frontend.Variable, len(inputs))
+	C0B2A1s := make([]frontend.Variable, len(inputs))
+	C1B0A0s := make([]frontend.Variable, len(inputs))
+	C1B0A1s := make([]frontend.Variable, len(inputs))
+	C1B1A0s := make([]frontend.Variable, len(inputs))
+	C1B1A1s := make([]frontend.Variable, len(inputs))
+	C1B2A0s := make([]frontend.Variable, len(inputs))
+	C1B2A1s := make([]frontend.Variable, len(inputs))
+	for i := range inputs {
+		C0B0A0s[i] = inputs[i].C0.B0.A0
+		C0B0A1s[i] = inputs[i].C0.B0.A1
+		C0B1A0s[i] = inputs[i].C0.B1.A0
+		C0B1A1s[i] = inputs[i].C0.B1.A1
+		C0B2A0s[i] = inputs[i].C0.B2.A0
+		C0B2A1s[i] = inputs[i].C0.B2.A1
+		C1B0A0s[i] = inputs[i].C1.B0.A0
+		C1B0A1s[i] = inputs[i].C1.B0.A1
+		C1B1A0s[i] = inputs[i].C1.B1.A0
+		C1B1A1s[i] = inputs[i].C1.B1.A1
+		C1B2A0s[i] = inputs[i].C1.B2.A0
+		C1B2A1s[i] = inputs[i].C1.B2.A1
+	}
+	ret.C0.B0.A0 = selector.Mux(pr.api, sel, C0B0A0s...)
+	ret.C0.B0.A1 = selector.Mux(pr.api, sel, C0B0A1s...)
+	ret.C0.B1.A0 = selector.Mux(pr.api, sel, C0B1A0s...)
+	ret.C0.B1.A1 = selector.Mux(pr.api, sel, C0B1A1s...)
+	ret.C0.B2.A0 = selector.Mux(pr.api, sel, C0B2A0s...)
+	ret.C0.B2.A1 = selector.Mux(pr.api, sel, C0B2A1s...)
+	ret.C1.B0.A0 = selector.Mux(pr.api, sel, C1B0A0s...)
+	ret.C1.B0.A1 = selector.Mux(pr.api, sel, C1B0A1s...)
+	ret.C1.B1.A0 = selector.Mux(pr.api, sel, C1B1A0s...)
+	ret.C1.B1.A1 = selector.Mux(pr.api, sel, C1B1A1s...)
+	ret.C1.B2.A0 = selector.Mux(pr.api, sel, C1B2A0s...)
+	ret.C1.B2.A1 = selector.Mux(pr.api, sel, C1B2A1s...)
+	return &ret
 }
 
 // AssertIsOnCurve asserts if p belongs to the curve. It doesn't modify p.

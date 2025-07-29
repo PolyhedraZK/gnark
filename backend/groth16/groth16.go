@@ -187,9 +187,6 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 		return groth16_bls12381.Prove(_r1cs, pk.(*groth16_bls12381.ProvingKey), fullWitness, opts...)
 
 	case *cs_bn254.R1CS:
-		if icicle_bn254.HasIcicle {
-			return icicle_bn254.Prove(_r1cs, pk.(*icicle_bn254.ProvingKey), fullWitness, opts...)
-		}
 		return groth16_bn254.Prove(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
 
 	case *cs_bw6761.R1CS:
@@ -204,6 +201,15 @@ func Prove(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.
 	case *cs_bw6633.R1CS:
 		return groth16_bw6633.Prove(_r1cs, pk.(*groth16_bw6633.ProvingKey), fullWitness, opts...)
 
+	default:
+		panic("unrecognized R1CS curve type")
+	}
+}
+
+func ExtractIntermediateData(r1cs constraint.ConstraintSystem, pk ProvingKey, fullWitness witness.Witness, opts ...backend.ProverOption) (*groth16_bn254.GnarkOutput, error) {
+	switch _r1cs := r1cs.(type) {
+	case *cs_bn254.R1CS:
+		return groth16_bn254.ExtractIntermediateData(_r1cs, pk.(*groth16_bn254.ProvingKey), fullWitness, opts...)
 	default:
 		panic("unrecognized R1CS curve type")
 	}
